@@ -67,7 +67,10 @@ int main(void)
   SystemClock_Config();
 	
 	// Turn on the GPIOC clock
-	RCC->AHBENR = RCC_AHBENR_GPIOCEN;
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+	
+	// Turn on the syscfg clock
+	RCC->APB2ENR |= RCC_APB2ENR_SYSCFGCOMPEN;
 	
 	// Set the LED pins to general purpose output mode, push-pull, low speed, and no pull-up or pull-down
 	GPIOC->MODER = 0x00055000;
@@ -81,8 +84,15 @@ int main(void)
 	GPIOA->PUPDR |= 0x00000002; // Pull down
 	
 	// Configure the EXTI
-	EXTI->EMR |= 0x1;
+	EXTI->IMR |= 0x1;
 	EXTI->RTSR |= 0x1;
+	
+	// Configure the SYSCFG registers
+	SYSCFG->EXTICR[0] = 0x00000000; // Enable PA0 to EXTI0
+	
+	// Enable the PA0 interrup with a priority of 1
+	NVIC_EnableIRQ(EXTI0_1_IRQn);
+	NVIC_SetPriority(EXTI0_1_IRQn, 0x1);
 	
 	// Turn on the red and green led
 	GPIOC->ODR |= 0x00000240;
@@ -147,6 +157,12 @@ void Error_Handler(void)
   {
   }
   /* USER CODE END Error_Handler_Debug */
+}
+
+void EXTI0_1_IRQHandler(void)
+{
+	GPIOC->ODR ^= 0x300; // Toggle the green and orange LEDs
+	EXTI->PR &= 0x1; // Only clear the interrupt on line 0
 }
 
 #ifdef  USE_FULL_ASSERT
