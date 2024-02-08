@@ -66,7 +66,7 @@ int main(void)
 
   SystemClock_Config();
 	
-	// Turn on the GPIOC & GPIOA clock
+	// Turn on the GPIOC clock
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
 	
@@ -94,7 +94,7 @@ int main(void)
 	// Enable the PA0 interrup with a priority of 1
 	NVIC_EnableIRQ(EXTI0_1_IRQn);
 	NVIC_SetPriority(SysTick_IRQn, 2);
-	NVIC_SetPriority(EXTI0_1_IRQn, 3);
+	NVIC_SetPriority(EXTI0_1_IRQn, 1);
 	
 	// Turn on the red and green led
 	GPIOC->ODR |= 0x00000240;

@@ -409,6 +409,21 @@
               <FileType>1</FileType>
               <FilePath>../Core/Src/stm32f0xx_hal_msp.c</FilePath>
             </File>
+            <File>
+              <FileName>FirstCheckoff.txt</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\FirstCheckoff.txt</FilePath>
+            </File>
+            <File>
+              <FileName>SecondCheckoff.txt</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\SecondCheckoff.txt</FilePath>
+            </File>
+            <File>
+              <FileName>ThirdCheckoff.txt</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\ThirdCheckoff.txt</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
