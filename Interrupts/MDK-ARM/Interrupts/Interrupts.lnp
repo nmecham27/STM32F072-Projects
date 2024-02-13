@@ -1,0 +1,25 @@
+--cpu Cortex-M0
+"interrupts\startup_stm32f072xb.o"
+"interrupts\main.o"
+"interrupts\stm32f0xx_it.o"
+"interrupts\stm32f0xx_hal_msp.o"
+"interrupts\stm32f0xx_hal_tim.o"
+"interrupts\stm32f0xx_hal_tim_ex.o"
+"interrupts\stm32f0xx_hal_rcc.o"
+"interrupts\stm32f0xx_hal_rcc_ex.o"
+"interrupts\stm32f0xx_hal.o"
+"interrupts\stm32f0xx_hal_i2c.o"
+"interrupts\stm32f0xx_hal_i2c_ex.o"
+"interrupts\stm32f0xx_hal_gpio.o"
+"interrupts\stm32f0xx_hal_dma.o"
+"interrupts\stm32f0xx_hal_cortex.o"
+"interrupts\stm32f0xx_hal_pwr.o"
+"interrupts\stm32f0xx_hal_pwr_ex.o"
+"interrupts\stm32f0xx_hal_flash.o"
+"interrupts\stm32f0xx_hal_flash_ex.o"
+"interrupts\stm32f0xx_hal_exti.o"
+"interrupts\system_stm32f0xx.o"
+--strict --scatter "Interrupts\Interrupts.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "Interrupts.map" -o Interrupts\Interrupts.axf
