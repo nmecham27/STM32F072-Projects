@@ -19,83 +19,75 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
+#define ORANGE__LED_ON 0x0100
+#define RED_LED_ON 0x00000040
+#define GREEN_LED_ON 0x0200
+#define BLUE_LED_ON 0x0080
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
-{
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
+{  
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
   /* Configure the system clock */
   SystemClock_Config();
+	
+	RCC->AHBENR = RCC->AHBENR | RCC_AHBENR_GPIOCEN; // Enable the GPIOC clock
+	RCC->AHBENR = RCC->AHBENR | RCC_AHBENR_GPIOAEN; // Enable the GPIOA clock
 
-  /* USER CODE BEGIN SysInit */
+	HAL_Delay(2);
+	
+	// GPIO C (LED configuration)
+	GPIOC->MODER = GPIOC->MODER | 0x00055000; // Set the GPIO C mode to general output
+	GPIOC->OTYPER = 0x00000000; // Set to push pull
+	GPIOC->OSPEEDR = 0x00000000; // Set to low speed across the GPIO port
+	GPIOC->PUPDR = 0x00000000; // Set to no pull up or pull down across the GPIO port
 
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+	// GPIO A (Push button configuration)
+	GPIOA->MODER = 0x00000000;
+	GPIOA->OSPEEDR = 0x00000000;
+	GPIOA->PUPDR = GPIOA->PUPDR | 0x00000002;
+	
+	GPIOC->ODR = GPIOC->ODR | RED_LED_ON; // Initialize to red led on
+	
+	// Varaible to use for debounce
+	uint32_t debounce = 0x00000000;
+	uint8_t currentValue = 0x00;
+	uint8_t switchAllowed = 0x00;
+	
+	// Red and Blue only
   while (1)
   {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+		currentValue = (uint8_t)(GPIOA->IDR & 0x1); // Get the latest push button value
+		debounce = debounce << 1;
+		debounce = debounce | currentValue;
+		
+		if(debounce == 0xFFFFFFFF && switchAllowed == 0x01)
+		{
+			switchAllowed = 0x00;
+			
+			// Switch the LED
+			if(GPIOC->ODR == RED_LED_ON)
+			{
+				GPIOC->ODR = BLUE_LED_ON;
+			}
+			else
+			{
+				GPIOC->ODR = RED_LED_ON;
+			}
+		}
+		else if (debounce != 0xFFFFFFFF)
+		{
+			switchAllowed = 0x01;
+		}
   }
-  /* USER CODE END 3 */
 }
 
 /**
