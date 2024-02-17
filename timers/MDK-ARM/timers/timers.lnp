@@ -1,0 +1,25 @@
+--cpu Cortex-M0
+"timers\startup_stm32f072xb.o"
+"timers\main.o"
+"timers\stm32f0xx_it.o"
+"timers\stm32f0xx_hal_msp.o"
+"timers\stm32f0xx_hal_tim.o"
+"timers\stm32f0xx_hal_tim_ex.o"
+"timers\stm32f0xx_hal_rcc.o"
+"timers\stm32f0xx_hal_rcc_ex.o"
+"timers\stm32f0xx_hal.o"
+"timers\stm32f0xx_hal_i2c.o"
+"timers\stm32f0xx_hal_i2c_ex.o"
+"timers\stm32f0xx_hal_gpio.o"
+"timers\stm32f0xx_hal_dma.o"
+"timers\stm32f0xx_hal_cortex.o"
+"timers\stm32f0xx_hal_pwr.o"
+"timers\stm32f0xx_hal_pwr_ex.o"
+"timers\stm32f0xx_hal_flash.o"
+"timers\stm32f0xx_hal_flash_ex.o"
+"timers\stm32f0xx_hal_exti.o"
+"timers\system_stm32f0xx.o"
+--strict --scatter "timers\timers.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "timers.map" -o timers\timers.axf
