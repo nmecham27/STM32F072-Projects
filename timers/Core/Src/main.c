@@ -32,16 +32,17 @@ int main(void)
 
   SystemClock_Config();
 	
+	// Enable the clock for the tim2, tim3, and GPIOC peripherals
 	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN | RCC_APB1ENR_TIM3EN;
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 
 	// Timer 2 configuration
 	// Enable the update event
 	// Set the prescaler to 8000 so our timer has a period of 1ms
-	// Set the auto reload register to 0xFB0 = 4,016 in order to get
+	// Set the auto reload register to 0xFA	= 250 in order to get
 	// a timer of 4Hz
 	TIM2->DIER |= 0x1;
-	TIM2->PSC = 0x1F3F; //8000
+	TIM2->PSC = 0x1F3F; //7999+1=8000
 	TIM2->ARR = 0xFA;
 	
 	// Timer 3 configuration
@@ -51,8 +52,8 @@ int main(void)
 	// Configure channel 1 & 2 to be PWM output
 	TIM3->PSC = 0xC8;
 	TIM3->ARR = 0x0032;
-	TIM3->CCR1 = 0xA;
-	TIM3->CCR2 = 0xA;
+	TIM3->CCR1 = 0xA; //0xA gives 80% duty cycle since pwm mode 2
+	TIM3->CCR2 = 0xA; //0xA gives 20% duty cyclc since pwm mode 1
 	TIM3->CCMR1 = 0x6878;
 	TIM3->CCER = 0x11;
 	TIM3->CR1 = 0x1;
