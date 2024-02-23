@@ -18,9 +18,55 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stdbool.h"
+
+#define BAUD_RATE 115200
+#define USART_TX_READY_MASK 0x80
+#define USART_RX_READY_MASK 0x20
+#define CARRIAGE_RETURN 0x0D
+#define LINE_FEED 0x0A
+#define EOT 0x04
+
+enum Led_e
+{
+	RED = 0,
+	BLUE,
+	GREEN,
+	ORANGE
+};
+
+// Define a const string to send to the user
+static const char INVALID_KEY_ERROR_MESSAGE[] = {"Invalid key pressed"};
+	
+static const char RED_LED_TOGGLE[] = {"Red LED toggled"};
+static const char RED_LED_ON[] = {"Red LED turned on"};
+static const char RED_LED_OFF[] = {"Red LED turned off"};
+	
+static const char BLUE_LED_TOGGLE[] = {"Blue LED toggled"};
+static const char BLUE_LED_ON[] = {"Blue LED turned on"};
+static const char BLUE_LED_OFF[] = {"Blue LED turned off"};
+	
+static const char GREEN_LED_TOGGLE[] = {"Green LED toggled"};
+static const char GREEN_LED_ON[] = {"Green LED turned on"};
+static const char GREEN_LED_OFF[] = {"Green LED turned off"};
+	
+static const char ORANGE_LED_TOGGLE[] = {"Orange LED toggled"};
+static const char ORANGE_LED_ON[] = {"Orange LED turned on"};
+static const char ORANGE_LED_OFF[] = {"Orange LED turned off"};
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+
+// Functions to send a character to the host
+void SendString(const char* string);
+void SendChar(char character);
+void DefaultConfigLeds();
+void ToggleLed(enum Led_e led);
+void TurnOnLed(enum Led_e led);
+void TurnOffLed(enum Led_e led);
+
+static volatile char gRxData = 0;
+static volatile bool gDataReady = false;
 
 
 /**
@@ -29,16 +75,214 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
+	// A local variable to store the most recent command byte
+	char localRxData = 0;
+	
+	// A flag to track which command byte we are on
+	bool firstByteValid = false;
+	
+	enum Led_e ledSelected;
+	
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* Configure the system clock */
   SystemClock_Config();
-
+	
+	// Configure the USART1 and GPIOC (LED) peripherals
+	RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIOAEN;
+	
+	// Set the USART1 baud rate prescaler to give a baud rate of 115200
+	USART1->BRR = HAL_RCC_GetHCLKFreq()/BAUD_RATE;
+	
+	// Configure GPIOA pins 10 (RX) and 9 (TX) to use the their alternate functions
+	GPIOA->MODER = 0x00280000;
+	GPIOA->AFR[1] = 0x110;
+	
+	// Configure the LEDs in the default settings so we can turn them on/off
+	DefaultConfigLeds();
+	
+	// Configure the USART1 interrupt
+	NVIC_EnableIRQ(USART1_IRQn);
+	NVIC_SetPriority(USART1_IRQn, 3); // Set with low priority
+	
+	// Turn on the USART1 with the TX and RX enabled
+	// also enable the RXNE interrupt
+	USART1->CR1 |= 0x2D;
+	
   while (1)
   {
+		while( gDataReady == false);
 		
+		// Save global state and clear the flag
+		localRxData = gRxData;
+		gDataReady = false;
+		
+		if( firstByteValid == false )
+		{
+			if( localRxData == 'r' )
+			{
+				ledSelected = RED;
+				firstByteValid = true;
+			}
+			else if( localRxData == 'b' )
+			{
+				ledSelected = BLUE;
+				firstByteValid = true;
+			}
+			else if( localRxData == 'g' )
+			{
+				ledSelected = GREEN;
+				firstByteValid = true;
+			}
+			else if( localRxData == 'o' )
+			{
+				ledSelected = ORANGE;
+				firstByteValid = true;
+			}
+			else
+			{
+				SendString(INVALID_KEY_ERROR_MESSAGE);
+			}
+		}
+		else
+		{
+			if( localRxData == '0' )
+			{
+				TurnOffLed(ledSelected);
+			}
+			else if( localRxData == '1' )
+			{
+				TurnOnLed(ledSelected);
+			}
+			else if( localRxData == '2' )
+			{
+				ToggleLed(ledSelected);
+			}
+			else
+			{
+				SendString(INVALID_KEY_ERROR_MESSAGE);
+			}
+			
+			firstByteValid = false; // Return to the state of parsing first command byte
+		}
   }
+}
+
+void DefaultConfigLeds()
+{
+	GPIOC->MODER = 0x00055000;
+	GPIOC->OTYPER &= 0x00000000;
+	GPIOC->OSPEEDR &= 0x00000000;
+	GPIOC->PUPDR &= 0x00000000;
+}
+
+void SendChar(char character)
+{
+	// Could potentially sit here forever
+	while( (USART1->ISR & USART_TX_READY_MASK) == 0 );
+	
+	USART1->TDR = character;
+}
+
+void SendString(const char* string)
+{
+	uint8_t index = 0;
+	
+	// Test for null and stop if found
+	while(string[index] != '\0')
+	{
+		SendChar(string[index]);
+		++index;
+	}
+	
+	SendChar(CARRIAGE_RETURN);
+	SendChar(LINE_FEED);
+}
+
+void ToggleLed(enum Led_e led)
+{
+	switch(led)
+	{
+		case RED:
+			GPIOC->ODR ^= 0x40;
+			SendString(RED_LED_TOGGLE);
+			break;
+		case BLUE:
+			GPIOC->ODR ^= 0x80;
+			SendString(BLUE_LED_TOGGLE);
+			break;
+		case GREEN:
+			GPIOC->ODR ^= 0x200;
+			SendString(GREEN_LED_TOGGLE);
+			break;
+		case ORANGE:
+			GPIOC->ODR ^= 0x100;
+			SendString(ORANGE_LED_TOGGLE);
+			break;
+		default:
+			SendString("PROBLEM!");
+			break;
+	}
+}
+
+void TurnOnLed(enum Led_e led)
+{
+	switch(led)
+	{
+		case RED:
+			GPIOC->ODR |= 0x40;
+			SendString(RED_LED_ON);
+			break;
+		case BLUE:
+			GPIOC->ODR |= 0x80;
+			SendString(BLUE_LED_ON);
+			break;
+		case GREEN:
+			GPIOC->ODR |= 0x200;
+			SendString(GREEN_LED_ON);
+			break;
+		case ORANGE:
+			GPIOC->ODR |= 0x100;
+			SendString(ORANGE_LED_ON);
+			break;
+		default:
+			SendString("PROBLEM!");
+			break;
+	}
+}
+
+void TurnOffLed(enum Led_e led)
+{
+	switch(led)
+	{
+		case RED:
+			GPIOC->ODR &= 0xFFBF;
+			SendString(RED_LED_OFF);
+			break;
+		case BLUE:
+			GPIOC->ODR &= 0xFF7F;
+			SendString(BLUE_LED_OFF);
+			break;
+		case GREEN:
+			GPIOC->ODR &= 0xFDFF;
+			SendString(GREEN_LED_OFF);
+			break;
+		case ORANGE:
+			GPIOC->ODR &= 0xFEFF;
+			SendString(ORANGE_LED_OFF);
+			break;
+		default:
+			SendString("PROBLEM!");
+			break;
+	}
+}
+
+void USART1_IRQHandler(void)
+{
+	gRxData = USART1->RDR;
+	gDataReady = true;
 }
 
 /**
