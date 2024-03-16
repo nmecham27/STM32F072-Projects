@@ -28,6 +28,7 @@
 #define EOT 0x04
 
 // I2C defines
+#define GYRO_ADDR 0x69
 #define PRESC 0x1
 #define SCLL 0x13
 #define SCLH 0xF
@@ -37,7 +38,23 @@
 #define NACKF 0x00000010
 #define TC 0x00000040
 #define RXNE 0x00000004
+#define TXE 0x00000001
 #define WHO_AM_I_REG 0x0F
+#define CTRL_REG 0x20
+#define OUT_X_L 0x28
+#define OUT_X_H 0x29
+#define OUT_Y_L 0x2A
+#define OUT_Y_H 0x2B
+#define OUT_Z_L 0x2C
+#define OUT_Z_H 0x2D
+#define NACKF_SHIFT 4
+#define TXIS_SHIFT 1
+#define RXNE_SHIFT 2
+#define TC_SHIFT 6
+#define POWER_ON 0x0F
+
+// Comment out to remove debug prints
+#define DEBUG
 
 enum Led_e
 {
@@ -61,8 +78,12 @@ void DefaultConfigUart();
 
 // Functions to configure the I2C
 void DefaultConfigI2C();
-void i2cSendData(uint8_t data);
-uint8_t i2cReadData(uint8_t data);
+bool i2cWriteData(uint8_t addr, uint8_t reg, uint8_t data);
+bool i2cReadData(uint8_t addr, uint8_t reg, uint8_t* returnedData);
+bool i2cMultiReadData(uint8_t addr, uint8_t reg, uint8_t* returnedData, uint8_t numBytes);
+
+// Mathematical functions for calculating the x & y data
+void TwosCompConv(uint16_t originalData, uint16_t* convertedData, bool* positive);
 
 /**
   * @brief  The application entry point.
@@ -89,83 +110,329 @@ int main(void)
 	
 	TurnOnLed(GREEN);
 	
-	uint8_t whoAmIValue = i2cReadData(WHO_AM_I_REG);
+	uint8_t readData;
 	
-	if(whoAmIValue == 0xD3)
-	{
-		TurnOnLed(RED);
-	}
-	else
-	{
-		TurnOnLed(BLUE);
-	}
+	// Leaving this in for the first lab checkoff
+	bool retStatus = i2cReadData(GYRO_ADDR, WHO_AM_I_REG, &readData);
+	
+	// Set the gyro into normal operation mode
+	retStatus = i2cWriteData(GYRO_ADDR, CTRL_REG, POWER_ON); 
+	
+	retStatus = i2cReadData(GYRO_ADDR, CTRL_REG, &readData);
+	
+	uint16_t xValue;
+	uint16_t yValue;
+	uint16_t tempDataHolder;
+	bool positive;
+	const uint8_t READ_SIZE_BYTES = 2;
+	uint8_t gyroData[READ_SIZE_BYTES];
 	
   while (1)
   {
+		HAL_Delay(100);
+		
+		retStatus = i2cMultiReadData(GYRO_ADDR, (OUT_X_L | 0x80), gyroData, READ_SIZE_BYTES);
+		
+		if(retStatus == false)
+		{
+			#ifdef DEBUG
+			SendString("Error reading X data");
+			#endif
+		}
+		
+		tempDataHolder = gyroData[0];
+		tempDataHolder |= (gyroData[1] << 8);
+		
+		TwosCompConv(tempDataHolder, &xValue, &positive);
+		
+		if(positive == true && xValue >= 500)
+		{
+			TurnOnLed(ORANGE);
+			TurnOffLed(GREEN);
+		}
+		else if(positive == false && xValue >= 500)
+		{
+			TurnOnLed(GREEN);
+			TurnOffLed(ORANGE);
+		}
+		
+		retStatus = i2cMultiReadData(GYRO_ADDR, (OUT_Y_L | 0x80), gyroData, READ_SIZE_BYTES);
+		
+		if(retStatus == false)
+		{
+			#ifdef DEBUG
+			SendString("Error reading X data");
+			#endif
+		}
+		
+		tempDataHolder = gyroData[0];
+		tempDataHolder |= (gyroData[1] << 8);
+		
+		TwosCompConv(tempDataHolder, &yValue, &positive);
+		
+		if(positive == true && yValue >= 500)
+		{
+			TurnOnLed(RED);
+			TurnOffLed(BLUE);
+		}
+		else if(positive == false && yValue >= 500)
+		{
+			TurnOnLed(BLUE);
+			TurnOffLed(RED);
+		}
   }
 }
 
-void i2cSendData(uint8_t data)
+void TwosCompConv(uint16_t originalData, uint16_t* convertedData, bool* positive)
 {
+	if( ((originalData & 0x8000) >> 15) == 1 )
+	{
+		*positive = false;
+		#ifdef DEBUG
+		SendString("X in negative direction");
+		#endif
+	}
+	else
+	{
+		*positive = true;
+		#ifdef DEBUG
+		SendString("X in positive direction");
+		#endif
+	}
 	
+	*convertedData = ((((originalData & 0x7FFF) ^ 0x7FFF) + 0x1) & 0x7FFF);
 }
 
-uint8_t i2cReadData(uint8_t data)
+bool i2cWriteData(uint8_t addr, uint8_t reg, uint8_t data)
 {
-	SendString("Starting I2C read");
+	bool retStatus = false;
 	
-	uint8_t returnData = 0xFF; // Use FF as an invalid data for right now
+	#ifdef DEBUG
+	SendString("Starting I2C single byte write");
+	#endif
+	
+	// Clear stop bit at the start
+	I2C2->CR2 = 0x00;
+	
+	// Address of the slave device
+	// bytes to transmit = 2
+	// write transaction
+	// start bit 1
+	I2C2->CR2 = 0x22000 | (addr << 1);
+	
+	while( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & TXIS) >> TXIS_SHIFT) == 0) )
+	{
+		#ifdef DEBUG
+		SendString("Waiting for NACKF or TXIS");
+		#endif
+	}
+	
+	// If no error move on
+	if( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & TXIS) >> TXIS_SHIFT) == 1) )
+	{
+		I2C2->TXDR = reg;
+		
+		while( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & TXIS) >> TXIS_SHIFT) == 0) )
+		{
+			#ifdef DEBUG
+			SendString("Waiting for NACKF or TXIS");
+			#endif
+		}
+		
+		// If no error move on
+		if( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & TXIS) >> TXIS_SHIFT) == 1) )
+		{
+			I2C2->TXDR = data;
+			
+			while( ((I2C2->ISR & TC) >> TC_SHIFT) == 0 )
+			{
+				#ifdef DEBUG
+				SendString("Waiting for TC");
+				#endif
+			}
+			
+			if( ((I2C2->ISR & TC) >> TC_SHIFT) == 1 )
+			{
+				retStatus = true;
+				#ifdef DEBUG
+				SendString("I2C transaction complete");
+				#endif
+			}
+		}
+	}
+	else
+	{
+		#ifdef DEBUG
+		SendString("NACK Received");
+		#endif
+	}
+	
+	// Set stop bit
+	I2C2->CR2 = 0x04000;
+	
+	return retStatus;
+}
+
+bool i2cReadData(uint8_t addr, uint8_t reg, uint8_t* returnedData)
+{
+	bool retStatus = false;
+	
+	#ifdef DEBUG
+	SendString("Starting I2C read");
+	#endif
+	
+	// Clear stop bit at the start
+	I2C2->CR2 = 0x00;
 	
 	// Address of the slave device
 	// bytes to transmit = 1
 	// write transaction
 	// start bit 1
-	I2C2->CR2 |= 0x10069;
-	I2C2->CR2 |= 0x02000;
+	// Address 69
+	I2C2->CR2 = 0x12000 | (addr << 1);
 	
-	
-	while( ((I2C2->ISR & NACKF) == 0) && ((I2C2->ISR & TXIS) == 0) )
+	while( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & TXIS) >> TXIS_SHIFT) == 0) )
 	{
-		SendString("105: Waiting for NACKF or TXIS");
+		#ifdef DEBUG
+		SendString("Waiting for NACKF or TXIS");
+		#endif
 	}
 	
 	// If no error move on
-	if( ((I2C2->ISR & NACKF) == 0) && ((I2C2->ISR & TXIS) == 1) )
+	if( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & TXIS) >> TXIS_SHIFT) == 1) )
 	{
-		SendString("111: TXIS set to 1");
+		I2C2->TXDR = reg;
 		
-		I2C2->TXDR = data;
-		
-		while( (I2C2->ISR & TC) == 0 )
+		while( ((I2C2->ISR & TC) >> TC_SHIFT) == 0 )
 		{
-			SendString("119: Waiting for TC");
+			#ifdef DEBUG
+			SendString("Waiting for TC");
+			#endif
 		}
 		
-		if( (I2C2->ISR & TC) == 1 )
+		if( ((I2C2->ISR & TC) >> TC_SHIFT) == 1 )
 		{
 			// Address of the slave device
 			// bytes to transmit = 1
 			// read transaction
 			// start bit 1
-			I2C2->CR2 |= 0x12469;
+			// Address 69
+			I2C2->CR2 = 0x12400 | (addr << 1);
 			
-			while( ((I2C2->ISR & NACKF) == 0) && ((I2C2->ISR & RXNE) == 0) && ((I2C2->ISR & TC) == 0) )
+			while( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & RXNE) >> RXNE_SHIFT) == 0) && (((I2C2->ISR & TC) >> TC_SHIFT) == 0) )
 			{
-				SendString("136: Waiting for NACK, RXNE or TC to change");
+				#ifdef DEBUG
+				SendString("Waiting for NACK, RXNE or TC to change");
+				#endif
 			}
 			
-			if( (I2C2->ISR & TC) == 1 )
+			if( ((I2C2->ISR & TC) >> TC_SHIFT) == 1 )
 			{
+				#ifdef DEBUG
+				SendString("I2C transaction complete");
+				#endif
 				// Grab the return data
-				returnData = I2C2->RXDR;
-				
-				// Set stop bit
-				I2C2->CR2 |= 0x04000;
+				*returnedData = I2C2->RXDR;
+				retStatus = true;
 			}
 		}
 	}
+	else
+	{
+		#ifdef DEBUG
+		SendString("NACK Received");
+		#endif
+	}
 	
-	return returnData;
+	// Set stop bit
+	I2C2->CR2 = 0x04000;
+	
+	return retStatus;
+}
+
+bool i2cMultiReadData(uint8_t addr, uint8_t reg, uint8_t* returnedData, uint8_t numBytes)
+{
+	bool retStatus = false;
+	uint8_t bytesReceived = 0;
+	
+	#ifdef DEBUG
+	SendString("Starting I2C multi read");
+	#endif
+	
+	// Clear stop bit at the start
+	I2C2->CR2 = 0x00;
+	
+	// Address of the slave device
+	// bytes to transmit = 1
+	// write transaction
+	// start bit 1
+	// Address 69
+	I2C2->CR2 = 0x12000 | (addr << 1);
+	
+	while( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & TXIS) >> TXIS_SHIFT) == 0) )
+	{
+		#ifdef DEBUG
+		SendString("Waiting for NACKF or TXIS");
+		#endif
+	}
+	
+	// If no error move on
+	if( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & TXIS) >> TXIS_SHIFT) == 1) )
+	{
+		I2C2->TXDR = reg;
+		
+		while( ((I2C2->ISR & TC) >> TC_SHIFT) == 0 )
+		{
+			#ifdef DEBUG
+			SendString("Waiting for TC");
+			#endif
+		}
+		
+		if( ((I2C2->ISR & TC) >> TC_SHIFT) == 1 )
+		{
+			// Address of the slave device
+			// bytes to transmit = numBytes
+			// read transaction
+			// start bit 1
+			// Address 69
+			I2C2->CR2 = 0x02400 | (addr << 1) | (numBytes << 16);
+			
+			while( bytesReceived != numBytes )
+			{
+				while( (((I2C2->ISR & NACKF) >> NACKF_SHIFT) == 0) && (((I2C2->ISR & RXNE) >> RXNE_SHIFT) == 0) && (((I2C2->ISR & TC) >> TC_SHIFT) == 0) )
+				{
+					#ifdef DEBUG
+					SendString("Waiting for NACK, RXNE or TC to change");
+					#endif
+				}
+				
+				if( ((I2C2->ISR & RXNE) >> RXNE_SHIFT) == 1 )
+				{
+					// Grab the return data
+					returnedData[bytesReceived++] = I2C2->RXDR;
+				}
+			}
+			
+			if( ((I2C2->ISR & TC) >> TC_SHIFT) == 1 )
+			{
+				#ifdef DEBUG
+				SendString("I2C transaction complete");
+				#endif
+				retStatus = true;
+			}
+		}
+	}
+	else
+	{
+		#ifdef DEBUG
+		SendString("NACK Received");
+		#endif
+	}
+	
+	// Set stop bit
+	I2C2->CR2 = 0x04000;
+	
+	return retStatus;
 }
 
 void DefaultConfigI2C()
@@ -175,9 +442,9 @@ void DefaultConfigI2C()
 	
 	// Set PB11 and PB13 to their alternate functions
 	GPIOB->MODER |= 0x18800000;
-	GPIOB->AFR[1] |= 0x1000;
+	GPIOB->AFR[1] |= 0x00501000;
 	GPIOB->OTYPER |= 0x2800;
-	GPIOB->ODR = 0x0400;
+	GPIOB->ODR = 0x4000;
 	
 	// Set PC0 to output push-pull
 	GPIOC->MODER |= 0x1;
@@ -194,9 +461,6 @@ void DefaultConfigLeds()
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 	
 	GPIOC->MODER |= 0x00055000;
-	//GPIOC->OTYPER &= 0x00000000;
-	//GPIOC->OSPEEDR &= 0x00000000;
-	//GPIOC->PUPDR &= 0x00000000;
 }
 
 void SendChar(char character)
