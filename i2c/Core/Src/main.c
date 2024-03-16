@@ -20,11 +20,24 @@
 #include "main.h"
 #include "stdbool.h"
 
+// UART defines
 #define BAUD_RATE 115200
 #define USART_TX_READY_MASK 0x80
 #define CARRIAGE_RETURN 0x0D
 #define LINE_FEED 0x0A
 #define EOT 0x04
+
+// I2C defines
+#define PRESC 0x1
+#define SCLL 0x13
+#define SCLH 0xF
+#define SDADEL 0x2
+#define SCLDEL 0x4
+#define TXIS 0x00000002
+#define NACKF 0x00000010
+#define TC 0x00000040
+#define RXNE 0x00000004
+#define WHO_AM_I_REG 0x0F
 
 enum Led_e
 {
@@ -46,6 +59,11 @@ void TurnOnLed(enum Led_e led);
 void TurnOffLed(enum Led_e led);
 void DefaultConfigUart();
 
+// Functions to configure the I2C
+void DefaultConfigI2C();
+void i2cSendData(uint8_t data);
+uint8_t i2cReadData(uint8_t data);
+
 /**
   * @brief  The application entry point.
   * @retval int
@@ -62,20 +80,123 @@ int main(void)
 	
 	// Configure the UART for debug prints
 	DefaultConfigUart();
-
+	
+	// Configure the I2C
+	DefaultConfigI2C();
+	
+	// Configure the LEDs
+	DefaultConfigLeds();
+	
+	TurnOnLed(GREEN);
+	
+	uint8_t whoAmIValue = i2cReadData(WHO_AM_I_REG);
+	
+	if(whoAmIValue == 0xD3)
+	{
+		TurnOnLed(RED);
+	}
+	else
+	{
+		TurnOnLed(BLUE);
+	}
+	
   while (1)
   {
   }
+}
+
+void i2cSendData(uint8_t data)
+{
+	
+}
+
+uint8_t i2cReadData(uint8_t data)
+{
+	SendString("Starting I2C read");
+	
+	uint8_t returnData = 0xFF; // Use FF as an invalid data for right now
+	
+	// Address of the slave device
+	// bytes to transmit = 1
+	// write transaction
+	// start bit 1
+	I2C2->CR2 |= 0x10069;
+	I2C2->CR2 |= 0x02000;
+	
+	
+	while( ((I2C2->ISR & NACKF) == 0) && ((I2C2->ISR & TXIS) == 0) )
+	{
+		SendString("105: Waiting for NACKF or TXIS");
+	}
+	
+	// If no error move on
+	if( ((I2C2->ISR & NACKF) == 0) && ((I2C2->ISR & TXIS) == 1) )
+	{
+		SendString("111: TXIS set to 1");
+		
+		I2C2->TXDR = data;
+		
+		while( (I2C2->ISR & TC) == 0 )
+		{
+			SendString("119: Waiting for TC");
+		}
+		
+		if( (I2C2->ISR & TC) == 1 )
+		{
+			// Address of the slave device
+			// bytes to transmit = 1
+			// read transaction
+			// start bit 1
+			I2C2->CR2 |= 0x12469;
+			
+			while( ((I2C2->ISR & NACKF) == 0) && ((I2C2->ISR & RXNE) == 0) && ((I2C2->ISR & TC) == 0) )
+			{
+				SendString("136: Waiting for NACK, RXNE or TC to change");
+			}
+			
+			if( (I2C2->ISR & TC) == 1 )
+			{
+				// Grab the return data
+				returnData = I2C2->RXDR;
+				
+				// Set stop bit
+				I2C2->CR2 |= 0x04000;
+			}
+		}
+	}
+	
+	return returnData;
+}
+
+void DefaultConfigI2C()
+{
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN | RCC_AHBENR_GPIOBEN;
+	RCC->APB1ENR |= RCC_APB1ENR_I2C2EN;
+	
+	// Set PB11 and PB13 to their alternate functions
+	GPIOB->MODER |= 0x18800000;
+	GPIOB->AFR[1] |= 0x1000;
+	GPIOB->OTYPER |= 0x2800;
+	GPIOB->ODR = 0x0400;
+	
+	// Set PC0 to output push-pull
+	GPIOC->MODER |= 0x1;
+	GPIOC->ODR |= 0x01;
+	
+	// Configure standard 100 MHz timing
+	I2C2->TIMINGR |= (PRESC << 28) | (SCLDEL << 20) | (SDADEL << 16) | (SCLH << 8) | (SCLL << 0);
+	
+	I2C2->CR1 |= 0x1;
 }
 
 void DefaultConfigLeds()
 {
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 	
-	GPIOC->MODER = 0x00055000;
-	GPIOC->OTYPER &= 0x00000000;
-	GPIOC->OSPEEDR &= 0x00000000;
-	GPIOC->PUPDR &= 0x00000000;
+	GPIOC->MODER |= 0x00055000;
+	//GPIOC->OTYPER &= 0x00000000;
+	//GPIOC->OSPEEDR &= 0x00000000;
+	//GPIOC->PUPDR &= 0x00000000;
 }
 
 void SendChar(char character)
