@@ -18,43 +18,56 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stdbool.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+// UART defines
+#define BAUD_RATE 115200
+#define USART_TX_READY_MASK 0x80
+#define CARRIAGE_RETURN 0x0D
+#define LINE_FEED 0x0A
+#define EOT 0x04
 
-/* USER CODE END Includes */
+// ADC defines
+#define EOC_MASK 0x00000004
 
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
+// Comment out to remove debug prints
+#define DEBUG
 
-/* USER CODE END PTD */
+enum Led_e
+{
+	RED = 0,
+	BLUE,
+	GREEN,
+	ORANGE
+};
 
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-/* USER CODE BEGIN PFP */
 
-/* USER CODE END PFP */
+// Functions to send a character to the host
+void SendString(const char* string);
+void SendChar(char character);
+void DefaultConfigLeds();
+void ToggleLed(enum Led_e led);
+void TurnOnLed(enum Led_e led);
+void TurnOffLed(enum Led_e led);
+void DefaultConfigUart();
+void DefaultConfigADC();
+void DefaultConfigDAC();
 
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
+// Sine Wave: 8-bit, 32 samples/cycle
+const uint8_t sine_table[32] = {127,151,175,197,216,232,244,251,254,251,244,
+232,216,197,175,151,127,102,78,56,37,21,9,2,0,2,9,21,37,56,78,102};
+// Triangle Wave: 8-bit, 32 samples/cycle
+const uint8_t triangle_table[32] = {0,15,31,47,63,79,95,111,127,142,158,174,
+190,206,222,238,254,238,222,206,190,174,158,142,127,111,95,79,63,47,31,15};
+// Sawtooth Wave: 8-bit, 32 samples/cycle
+const uint8_t sawtooth_table[32] = {0,7,15,23,31,39,47,55,63,71,79,87,95,103,
+111,119,127,134,142,150,158,166,174,182,190,198,206,214,222,230,238,246};
+// Square Wave: 8-bit, 32 samples/cycle
+const uint8_t square_table[32] = {254,254,254,254,254,254,254,254,254,254,
+254,254,254,254,254,254,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 /**
   * @brief  The application entry point.
@@ -62,40 +75,248 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
   /* Configure the system clock */
   SystemClock_Config();
+	
+	// Configure the LEDs
+	DefaultConfigLeds();
+	
+	// Configure UART for debugging
+	DefaultConfigUart();
+	
+	DefaultConfigADC();
+	
+	DefaultConfigDAC();
+	
+	HAL_Delay(1000);
 
-  /* USER CODE BEGIN SysInit */
+	TurnOffLed(RED);
+	TurnOffLed(BLUE);
+	TurnOffLed(GREEN);
+	TurnOffLed(ORANGE);
 
-  /* USER CODE END SysInit */
+	uint32_t adcData = 0;
+	uint8_t tableIndex = 0;
 
-  /* Initialize all configured peripherals */
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
-
+	// Doing both ADC and DAC stuff in the whle loop
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+		HAL_Delay(1);
+		
+		DAC1->DHR8R1 = sawtooth_table[tableIndex++];
+		DAC1->SWTRIGR |= 0x1;
+		if(tableIndex == sizeof(sawtooth_table))
+		{
+			tableIndex = 0;
+		}
+		
+		// Lab part 1
+		if( ((ADC1->ISR & EOC_MASK) >> 2) == 1)
+		{
+			// Get the converted data
+			adcData = ADC1->DR;
+			
+			if(adcData <= 0x40)
+			{
+				TurnOnLed(BLUE);
+				TurnOffLed(RED);
+				TurnOffLed(GREEN);
+				TurnOffLed(ORANGE);
+			}
+			else if(adcData > 0x40 && adcData <= 0x80)
+			{
+				TurnOnLed(ORANGE);
+				TurnOnLed(BLUE);
+				TurnOffLed(RED);
+				TurnOffLed(GREEN);
+			}
+			else if(adcData > 0x80 && adcData <= 0xC0)
+			{
+				TurnOnLed(ORANGE);
+				TurnOnLed(BLUE);
+				TurnOnLed(RED);
+				TurnOffLed(GREEN);
+			}
+			else
+			{
+				TurnOnLed(ORANGE);
+				TurnOnLed(BLUE);
+				TurnOnLed(RED);
+				TurnOnLed(GREEN);
+			}
+		}
   }
-  /* USER CODE END 3 */
+}
+
+void DefaultConfigDAC()
+{
+	RCC->APB1ENR |= RCC_APB1ENR_DACEN;
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+	
+	// Configure PA4 as the DAC out
+	GPIOA->MODER = 0x00000C00;
+	
+	DAC1->CR |= 0x00000039;
+}
+
+void DefaultConfigADC()
+{
+	RCC->APB2ENR |= RCC_APB2ENR_ADCEN;
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+	
+	// Configure PA1 as the ADC in pin
+	GPIOA->MODER = 0x0000000C;
+	
+	// Configure to continuous mode, 8 bit res, and software trigger
+	ADC1->CFGR1 |= 0x00002010;
+	
+	// Select channel 1 to be enabled
+	ADC1->CHSELR |= 0x00000002;
+	
+	// Go through the calibration process
+	/* (1) Ensure that ADEN = 0 */
+	/* (2) Clear ADEN by setting ADDIS*/
+	/* (3) Clear DMAEN */
+	/* (4) Launch the calibration by setting ADCAL */
+	/* (5) Wait until ADCAL=0 */
+	if ((ADC1->CR & ADC_CR_ADEN) != 0) /* (1) */
+	{
+	ADC1->CR |= ADC_CR_ADDIS; /* (2) */
+	}
+	while ((ADC1->CR & ADC_CR_ADEN) != 0)
+	{
+	/* For robust implementation, add here time-out management */
+	}
+	ADC1->CFGR1 &= ~ADC_CFGR1_DMAEN; /* (3) */
+	ADC1->CR |= ADC_CR_ADCAL; /* (4) */
+	while ((ADC1->CR & ADC_CR_ADCAL) != 0) /* (5) */
+	{
+	/* For robust implementation, add here time-out management */
+	}
+	
+	// Enable the ADC
+	ADC1->CR |= 0x00000005;
+	
+	TurnOnLed(RED);
+	TurnOnLed(BLUE);
+	TurnOnLed(GREEN);
+	TurnOnLed(ORANGE);
+}
+
+void DefaultConfigLeds()
+{
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+	
+	GPIOC->MODER |= 0x00055000;
+}
+
+void SendChar(char character)
+{
+	// Could potentially sit here forever
+	while( (USART1->ISR & USART_TX_READY_MASK) == 0 );
+	
+	USART1->TDR = character;
+}
+
+void SendString(const char* string)
+{
+	uint8_t index = 0;
+	
+	// Test for null and stop if found
+	while(string[index] != '\0')
+	{
+		SendChar(string[index]);
+		++index;
+	}
+	
+	SendChar(CARRIAGE_RETURN);
+	SendChar(LINE_FEED);
+}
+
+void ToggleLed(enum Led_e led)
+{
+	switch(led)
+	{
+		case RED:
+			GPIOC->ODR ^= 0x40;
+			break;
+		case BLUE:
+			GPIOC->ODR ^= 0x80;
+			break;
+		case GREEN:
+			GPIOC->ODR ^= 0x200;
+			break;
+		case ORANGE:
+			GPIOC->ODR ^= 0x100;
+			break;
+		default:
+			SendString("PROBLEM!");
+			break;
+	}
+}
+
+void TurnOnLed(enum Led_e led)
+{
+	switch(led)
+	{
+		case RED:
+			GPIOC->ODR |= 0x40;
+			break;
+		case BLUE:
+			GPIOC->ODR |= 0x80;
+			break;
+		case GREEN:
+			GPIOC->ODR |= 0x200;
+			break;
+		case ORANGE:
+			GPIOC->ODR |= 0x100;
+			break;
+		default:
+			SendString("PROBLEM!");
+			break;
+	}
+}
+
+void TurnOffLed(enum Led_e led)
+{
+	switch(led)
+	{
+		case RED:
+			GPIOC->ODR &= 0xFFBF;
+			break;
+		case BLUE:
+			GPIOC->ODR &= 0xFF7F;
+			break;
+		case GREEN:
+			GPIOC->ODR &= 0xFDFF;
+			break;
+		case ORANGE:
+			GPIOC->ODR &= 0xFEFF;
+			break;
+		default:
+			SendString("PROBLEM!");
+			break;
+	}
+}
+
+void DefaultConfigUart()
+{
+	RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+	
+	// Set the USART1 baud rate prescaler to give a baud rate of 115200
+	USART1->BRR = HAL_RCC_GetHCLKFreq()/BAUD_RATE;
+	
+	// Configure GPIOA pins 10 (RX) and 9 (TX) to use the their alternate functions
+	GPIOA->MODER = 0x00280000;
+	GPIOA->AFR[1] = 0x110;
+	
+	// Turn on the USART1 with the TX and RX enabled
+	USART1->CR1 |= 0xD;
 }
 
 /**
