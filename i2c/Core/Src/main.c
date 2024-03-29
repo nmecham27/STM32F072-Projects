@@ -145,12 +145,12 @@ int main(void)
 		
 		TwosCompConv(tempDataHolder, &xValue, &positive);
 		
-		if(positive == true && xValue >= 300)
+		if(positive == true && xValue >= 4000)
 		{
 			TurnOnLed(ORANGE);
 			TurnOffLed(GREEN);
 		}
-		else if(positive == false && xValue >= 300)
+		else if(positive == false && xValue >= 4000)
 		{
 			TurnOnLed(GREEN);
 			TurnOffLed(ORANGE);
@@ -170,12 +170,12 @@ int main(void)
 		
 		TwosCompConv(tempDataHolder, &yValue, &positive);
 		
-		if(positive == true && yValue >= 300)
+		if(positive == true && yValue >= 4000)
 		{
 			TurnOnLed(BLUE);
 			TurnOffLed(RED);
 		}
-		else if(positive == false && yValue >= 300)
+		else if(positive == false && yValue >= 4000)
 		{
 			TurnOnLed(RED);
 			TurnOffLed(BLUE);
