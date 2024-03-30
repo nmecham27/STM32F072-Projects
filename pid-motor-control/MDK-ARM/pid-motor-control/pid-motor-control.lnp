@@ -1,0 +1,26 @@
+--cpu Cortex-M0
+"pid-motor-control\startup_stm32f072xb.o"
+"pid-motor-control\main.o"
+"pid-motor-control\stm32f0xx_it.o"
+"pid-motor-control\stm32f0xx_hal_msp.o"
+"pid-motor-control\motor.o"
+"pid-motor-control\stm32f0xx_hal_tim.o"
+"pid-motor-control\stm32f0xx_hal_tim_ex.o"
+"pid-motor-control\stm32f0xx_hal_rcc.o"
+"pid-motor-control\stm32f0xx_hal_rcc_ex.o"
+"pid-motor-control\stm32f0xx_hal.o"
+"pid-motor-control\stm32f0xx_hal_i2c.o"
+"pid-motor-control\stm32f0xx_hal_i2c_ex.o"
+"pid-motor-control\stm32f0xx_hal_gpio.o"
+"pid-motor-control\stm32f0xx_hal_dma.o"
+"pid-motor-control\stm32f0xx_hal_cortex.o"
+"pid-motor-control\stm32f0xx_hal_pwr.o"
+"pid-motor-control\stm32f0xx_hal_pwr_ex.o"
+"pid-motor-control\stm32f0xx_hal_flash.o"
+"pid-motor-control\stm32f0xx_hal_flash_ex.o"
+"pid-motor-control\stm32f0xx_hal_exti.o"
+"pid-motor-control\system_stm32f0xx.o"
+--strict --scatter "pid-motor-control\pid-motor-control.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "pid-motor-control.map" -o pid-motor-control\pid-motor-control.axf
