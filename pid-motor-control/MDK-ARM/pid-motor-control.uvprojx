@@ -412,7 +412,7 @@
             <File>
               <FileName>motor.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\..\..\..\..\..\Downloads\motor.c</FilePath>
+              <FilePath>.\motor.c</FilePath>
             </File>
           </Files>
         </Group>

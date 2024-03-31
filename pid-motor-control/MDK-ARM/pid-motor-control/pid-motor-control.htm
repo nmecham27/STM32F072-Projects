@@ -3,7 +3,7 @@
 <title>Static Call Graph - [pid-motor-control\pid-motor-control.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image pid-motor-control\pid-motor-control.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6210000: Last Updated: Fri Mar 29 09:33:11 2024
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 6210000: Last Updated: Sat Mar 30 19:16:48 2024
 <BR><P>
 <H3>Maximum Stack Usage =         32 bytes + Unknown(Functions without stacksize, Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -436,7 +436,11 @@ Global Symbols
 <P><STRONG><a name="[26]"></a>SystemInit</STRONG> (Thumb, 2 bytes, Stack size 0 bytes, system_stm32f0xx.o(.text.SystemInit))
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f072xb.o(.text)
 </UL>
-<P><STRONG><a name="[17]"></a>TIM6_DAC_IRQHandler</STRONG> (Thumb, 52 bytes, Stack size 0 bytes, motor.o(.text.TIM6_DAC_IRQHandler))
+<P><STRONG><a name="[17]"></a>TIM6_DAC_IRQHandler</STRONG> (Thumb, 148 bytes, Stack size 16 bytes, motor.o(.text.TIM6_DAC_IRQHandler))
+<BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = TIM6_DAC_IRQHandler
+</UL>
+<BR>[Calls]<UL><LI><a href="#[40]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_uidiv
+</UL>
 <BR>[Address Reference Count : 1]<UL><LI> startup_stm32f072xb.o(RESET)
 </UL>
 <P><STRONG><a name="[31]"></a>main</STRONG> (Thumb, 132 bytes, Stack size 0 bytes, main.o(.text.main))
@@ -457,6 +461,7 @@ Global Symbols
 
 <P><STRONG><a name="[40]"></a>__aeabi_uidiv</STRONG> (Thumb, 68 bytes, Stack size 0 bytes, aeabi_sdivfast.o(.text_divfast))
 <BR><BR>[Called By]<UL><LI><a href="#[3e]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_InitTick
+<LI><a href="#[17]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;TIM6_DAC_IRQHandler
 </UL>
 
 <P><STRONG><a name="[72]"></a>__aeabi_idiv</STRONG> (Thumb, 434 bytes, Stack size 8 bytes, aeabi_sdivfast.o(.text_divfast), UNUSED)
